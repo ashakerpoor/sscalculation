@@ -6,9 +6,6 @@ from scipy.sparse.linalg import spsolve
 
 S,Q = u0.shape()
 
-# Initialize the reaction matrix
-# def reaction_term(u_i, i):
-
 
 def residual(u):
     res = np.zeros_like(u)
@@ -29,8 +26,41 @@ def residual(u):
     return res
 
 
+def reaction_term(u, s, i):
+    ds = 0.0
 
-# Calculate the Jacobian
+    for reactants, products, stoich, powers, rates in reactions[i]:
+        # stoich = [r1, r2, ..., p1, p2, ...]
+        # powers = [pr1, pr2, ..., pp1, pp2, ...]
+        # rates = [kfwd, krev]
 
+        len_r = len(reactants)
+        sr = 1 if s in reactants else 0
+        sp = 1 if s in products else 0
 
-# Implement the Newton-Raphson algorithm
+        if not (sr or sp):
+            continue
+
+        fwd = rates[0]
+        for idx, specie in enumerate(reactants):
+            conc = u[specie, i]
+            fwd *= pow(conc, powers[idx])
+
+        rev = 0.0
+        if rates[1] > 0:
+            rev = rates[1]
+            for idx, specie in enumerate(products):
+                conc = u[specie, i]
+                rev *= pow(conc, powers[len_r+idx])
+
+        delta = 0.0
+        if sr:
+            idx = reactants.index(s)
+            delta -= stoich[idx]*(fwd - rev)
+        if sp:
+            idx = products.index(s)
+            delta += stoich[len_r+idx]*(fwd - rev)
+
+        ds += delta
+
+    return ds
