@@ -20,7 +20,7 @@ def residual(u):
                 dij = d[index]
                 diff_term += D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
             
-            react_term = 0.0 # TODO: add the correct fucntion call later
+            react_term = V[i] * reaction_term(u, s, i)
             res[s, i] = diff_term + react_term
 
     return res
