@@ -64,3 +64,18 @@ def reaction_term(u, s, i):
         ds += delta
 
     return ds
+
+
+def jacobian(u, h=1e-6):
+    N = S * Q
+    J = lil_matrix((N, N))
+    u_flat = u.flatten()
+    F0 = residual(u).flatten()
+
+    for k in range(N):
+        u_perturbed = u_flat.copy()
+        u_perturbed[k] += h
+        F1 = residual(u_perturbed.reshape(S,Q)).flatten()
+        J[:, k] = (F1 - F0) / h
+
+    return J.tocsr()
