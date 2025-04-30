@@ -15,11 +15,13 @@ class NewtonRaphson:
         self.S = None
         self.Q = None
 
-    def newton(u0, tol=1e-6, max_iter=20):
+
+    def newton(self, u0, tol=1e-6, max_iter=20):
+        self.S, self.Q = u0.shape
         u = u0.copy()
 
         for k in range(max_iter):
-            F = residual(u)
+            F = self.residual(u)
             norm_F = np.linalg.norm(F)
 
             print(f"Iter {k}: ||F|| = {norm_F:.3e}")
@@ -27,36 +29,36 @@ class NewtonRaphson:
                 print("Converged.")
                 return u
 
-            J = jacobian(u)
+            J = self.jacobian(u)
             delta_u = spsolve(J, -F.flatten())
-            u += delta_u.reshape(S, Q)
+            u += delta_u.reshape(self.S, self.Q)
 
         raise RuntimeError("Solver failed to converge.")
 
 
-    def residual(u):
+    def residual(self, u):
         res = np.zeros_like(u)
 
-        for i in range(Q):
-            for s in range(S):
+        for i in range(self.Q):
+            for s in range(self.S):
                 diff_term = 0.0
 
-                for j in neighbors[i]:
-                    index = (i,j) if (i,j) in A else (j,i)
-                    Aij = A[index]
-                    dij = d[index]
-                    diff_term += D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
+                for j in self.neighbors[i]:
+                    index = (i,j) if (i,j) in self.A else (j,i)
+                    Aij = self.A[index]
+                    dij = self.d[index]
+                    diff_term += self.D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
                 
-                react_term = V[i] * reaction_term(u, s, i)
+                react_term = self.V[i] * self.reaction_term(u, s, i)
                 res[s, i] = diff_term + react_term
 
         return res
 
 
-    def reaction_term(u, s, i):
+    def reaction_term(self, u, s, i):
         ds = 0.0
 
-        for reactants, products, stoich, powers, rates in reactions[i]:
+        for reactants, products, stoich, powers, rates in self.reactions[i]:
             # stoich = [r1, r2, ..., p1, p2, ...]
             # powers = [pr1, pr2, ..., pp1, pp2, ...]
             # rates = [kfwd, krev]
@@ -93,16 +95,16 @@ class NewtonRaphson:
         return ds
 
 
-    def jacobian(u, h=1e-6):
-        N = S * Q
+    def jacobian(self, u, h=1e-6):
+        N = self.S * self.Q
         J = lil_matrix((N, N))
         u_flat = u.flatten()
-        F0 = residual(u).flatten()
+        F0 = self.residual(u).flatten()
 
         for k in range(N):
             u_perturbed = u_flat.copy()
             u_perturbed[k] += h
-            F1 = residual(u_perturbed.reshape(S,Q)).flatten()
+            F1 = self.residual(u_perturbed.reshape(self.S,self.Q)).flatten()
             J[:, k] = (F1 - F0) / h
 
         return J.tocsr()
