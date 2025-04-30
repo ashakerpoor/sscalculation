@@ -7,6 +7,26 @@ from scipy.sparse.linalg import spsolve
 S,Q = u0.shape()
 
 
+# Newton-Raphson solver
+def newton(u0, tol=1e-6, max_iter=20):
+    u = u0.copy()
+
+    for k in range(max_iter):
+        F = residual(u)
+        norm_F = np.linalg.norm(F)
+
+        print(f"Iter {k}: ||F|| = {norm_F:.3e}")
+        if norm_F < tol:
+            print("Converged.")
+            return u
+
+        J = jacobian(u)
+        delta_u = spsolve(J, -F.flatten())
+        u += delta_u.reshape(S, Q)
+
+    raise RuntimeError("Solver failed to converge.")
+
+
 def residual(u):
     res = np.zeros_like(u)
 
