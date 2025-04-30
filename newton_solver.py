@@ -3,99 +3,106 @@ from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
 
 
-
-S,Q = u0.shape()
-
-
 # Newton-Raphson solver
-def newton(u0, tol=1e-6, max_iter=20):
-    u = u0.copy()
+class NewtonRaphson:
+    def __init__(self, neighbors, A, d, D, V, reactions):
+        self.neighbors = neighbors
+        self.A = A
+        self.d = d
+        self.D = D
+        self.V = V
+        self.reactions = reactions
+        self.S = None
+        self.Q = None
 
-    for k in range(max_iter):
-        F = residual(u)
-        norm_F = np.linalg.norm(F)
+    def newton(u0, tol=1e-6, max_iter=20):
+        u = u0.copy()
 
-        print(f"Iter {k}: ||F|| = {norm_F:.3e}")
-        if norm_F < tol:
-            print("Converged.")
-            return u
+        for k in range(max_iter):
+            F = residual(u)
+            norm_F = np.linalg.norm(F)
 
-        J = jacobian(u)
-        delta_u = spsolve(J, -F.flatten())
-        u += delta_u.reshape(S, Q)
+            print(f"Iter {k}: ||F|| = {norm_F:.3e}")
+            if norm_F < tol:
+                print("Converged.")
+                return u
 
-    raise RuntimeError("Solver failed to converge.")
+            J = jacobian(u)
+            delta_u = spsolve(J, -F.flatten())
+            u += delta_u.reshape(S, Q)
 
-
-def residual(u):
-    res = np.zeros_like(u)
-
-    for i in range(Q):
-        for s in range(S):
-            diff_term = 0.0
-
-            for j in neighbors[i]:
-                index = (i,j) if (i,j) in A else (j,i)
-                Aij = A[index]
-                dij = d[index]
-                diff_term += D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
-            
-            react_term = V[i] * reaction_term(u, s, i)
-            res[s, i] = diff_term + react_term
-
-    return res
+        raise RuntimeError("Solver failed to converge.")
 
 
-def reaction_term(u, s, i):
-    ds = 0.0
+    def residual(u):
+        res = np.zeros_like(u)
 
-    for reactants, products, stoich, powers, rates in reactions[i]:
-        # stoich = [r1, r2, ..., p1, p2, ...]
-        # powers = [pr1, pr2, ..., pp1, pp2, ...]
-        # rates = [kfwd, krev]
+        for i in range(Q):
+            for s in range(S):
+                diff_term = 0.0
 
-        len_r = len(reactants)
-        sr = 1 if s in reactants else 0
-        sp = 1 if s in products else 0
+                for j in neighbors[i]:
+                    index = (i,j) if (i,j) in A else (j,i)
+                    Aij = A[index]
+                    dij = d[index]
+                    diff_term += D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
+                
+                react_term = V[i] * reaction_term(u, s, i)
+                res[s, i] = diff_term + react_term
 
-        if not (sr or sp):
-            continue
+        return res
 
-        fwd = rates[0]
-        for idx, specie in enumerate(reactants):
-            conc = u[specie, i]
-            fwd *= pow(conc, powers[idx])
 
-        rev = 0.0
-        if rates[1] > 0:
-            rev = rates[1]
-            for idx, specie in enumerate(products):
+    def reaction_term(u, s, i):
+        ds = 0.0
+
+        for reactants, products, stoich, powers, rates in reactions[i]:
+            # stoich = [r1, r2, ..., p1, p2, ...]
+            # powers = [pr1, pr2, ..., pp1, pp2, ...]
+            # rates = [kfwd, krev]
+
+            len_r = len(reactants)
+            sr = 1 if s in reactants else 0
+            sp = 1 if s in products else 0
+
+            if not (sr or sp):
+                continue
+
+            fwd = rates[0]
+            for idx, specie in enumerate(reactants):
                 conc = u[specie, i]
-                rev *= pow(conc, powers[len_r+idx])
+                fwd *= pow(conc, powers[idx])
 
-        delta = 0.0
-        if sr:
-            idx = reactants.index(s)
-            delta -= stoich[idx]*(fwd - rev)
-        if sp:
-            idx = products.index(s)
-            delta += stoich[len_r+idx]*(fwd - rev)
+            rev = 0.0
+            if rates[1] > 0:
+                rev = rates[1]
+                for idx, specie in enumerate(products):
+                    conc = u[specie, i]
+                    rev *= pow(conc, powers[len_r+idx])
 
-        ds += delta
+            delta = 0.0
+            if sr:
+                idx = reactants.index(s)
+                delta -= stoich[idx]*(fwd - rev)
+            if sp:
+                idx = products.index(s)
+                delta += stoich[len_r+idx]*(fwd - rev)
 
-    return ds
+            ds += delta
+
+        return ds
 
 
-def jacobian(u, h=1e-6):
-    N = S * Q
-    J = lil_matrix((N, N))
-    u_flat = u.flatten()
-    F0 = residual(u).flatten()
+    def jacobian(u, h=1e-6):
+        N = S * Q
+        J = lil_matrix((N, N))
+        u_flat = u.flatten()
+        F0 = residual(u).flatten()
 
-    for k in range(N):
-        u_perturbed = u_flat.copy()
-        u_perturbed[k] += h
-        F1 = residual(u_perturbed.reshape(S,Q)).flatten()
-        J[:, k] = (F1 - F0) / h
+        for k in range(N):
+            u_perturbed = u_flat.copy()
+            u_perturbed[k] += h
+            F1 = residual(u_perturbed.reshape(S,Q)).flatten()
+            J[:, k] = (F1 - F0) / h
 
-    return J.tocsr()
+        return J.tocsr()
