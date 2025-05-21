@@ -3,6 +3,10 @@ from sscalculation.newton_solver import NewtonRaphson
 
 
 
+def test_newton(solver, u0):
+    solver.newton(u0)
+
+
 def test_residual():
     # Parameter setup for a 3x2 voxel grid
     neighbors = {
@@ -84,6 +88,7 @@ def main():
     #####################################################################
     ##### 1st reaction test case (1 reaction):
     ##### Reaction: A + B <-> 2C in voxel 0
+    ##### expected values: A = 1.3, B = 2.3, C = 2.4
     D = [0.0] * S
     V = [1.0] * Q
     kfwd = 2.0
@@ -103,7 +108,8 @@ def main():
     ])
 
     solver = NewtonRaphson(neighbors, A, d, D, V, reactions)
-    test_reaction_term(solver, u0)
+    test_newton(solver,u0)
+    # test_reaction_term(solver, u0)
     # test_residual()
 
 if __name__ == "__main__":
