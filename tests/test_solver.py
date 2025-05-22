@@ -70,18 +70,19 @@ def test_reaction_term(solver, u):
 
 def main():
     neighbors = {
-        0: []
+        # 0: []
+        0: [1],
+        1: [0],
     }
     Q = len(neighbors)
-    S = 3  # Species: A, B, C
 
-    # Diffusion params (not used in this test)
+    # Diffusion params (not used in tests 1 & 2)
     A, d = {}, {}
-    for i in neighbors:
-        for j in neighbors[i]:
-            if (i, j) not in A and (j, i) not in A:
-                A[(i, j)] = 1.0
-                d[(i, j)] = 1.0
+    # for i in neighbors:
+    #     for j in neighbors[i]:
+    #         if (i, j) not in A and (j, i) not in A:
+    #             A[(i, j)] = 1.0
+    #             d[(i, j)] = 1.0
     
     reactions = [[] for _ in range(Q)]
 
@@ -89,6 +90,7 @@ def main():
     ##### 1st reaction test case (1 reaction):
     ##### Reaction: A + B <-> 2C in voxel 0
     ##### expected values: A = 1.3, B = 2.3, C = 2.4
+    # S = 3  # Species: A, B, C
     # D = [0.0] * S
     # V = [1.0] * Q
     # kfwd = 2.0
@@ -111,28 +113,45 @@ def main():
     ##### 2nd reaction test case (2 coupled reactions):
     ##### Expected values: A = B = C = 1.
     ##### Reactions: Reaction 1: A <-> B; Reaction 2: B <-> C
-    D = [0.0] * S
-    V = [1.0] * Q
-    reactions[0].append((
-    [0],        # reactants: A
-    [1],        # products: B
-    [1, 1],     # stoichiometries: A and B
-    [1, 1],     # powers: A and B
-    [1.0, 1.0]  # rate constants: kfwd1, krev1
-    ))
+    # S = 3  # Species: A, B, C
+    # D = [0.0] * S
+    # V = [1.0] * Q
+    # reactions[0].append((
+    # [0],        # reactants: A
+    # [1],        # products: B
+    # [1, 1],     # stoichiometries: A and B
+    # [1, 1],     # powers: A and B
+    # [1.0, 1.0]  # rate constants: kfwd1, krev1
+    # ))
 
-    reactions[0].append((
-    [1],        # reactants: B
-    [2],        # products: C
-    [1, 1],     # stoichiometries: B and C
-    [1, 1],     # powers: B and C
-    [2.0, 2.0]  # rate constants: kfwd2, krev2
-    ))
+    # reactions[0].append((
+    # [1],        # reactants: B
+    # [2],        # products: C
+    # [1, 1],     # stoichiometries: B and C
+    # [1, 1],     # powers: B and C
+    # [2.0, 2.0]  # rate constants: kfwd2, krev2
+    # ))
+
+    # u0 = np.array([
+    # [3.0],  # A
+    # [0.0],  # B
+    # [0.0],  # C
+    # ])
+
+    ######################################################################
+    ##### 3rd test case (diffusion only between 2 voxels):
+    ##### Expected values: species A[0] = A[1] = 0.25
+    # A = {(0, 1): 2.0, (1, 0): 2.0}
+    # d = {(0, 1): 1.0, (1, 0): 1.0}
+    S = 1   # Species: A
+    D = [1.0]
+    V = [1.0, 3.0]
+    L = [v ** (1/3) for v in V]
+    A = {(0, 1): min(L[0]**2, L[1]**2), (1, 0): min(L[0]**2, L[1]**2)}
+    d = {(0, 1): 0.5 * L[0] + 0.5 * L[1], (1, 0): 0.5 * L[0] + 0.5 * L[1]}
 
     u0 = np.array([
-    [3.0],  # A
-    [0.0],  # B
-    [0.0],  # C
+        [1.0, 0.0]  # A: only in compartmet 1
     ])
 
     solver = NewtonRaphson(neighbors, A, d, D, V, reactions)
