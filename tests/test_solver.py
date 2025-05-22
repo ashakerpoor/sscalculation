@@ -89,22 +89,50 @@ def main():
     ##### 1st reaction test case (1 reaction):
     ##### Reaction: A + B <-> 2C in voxel 0
     ##### expected values: A = 1.3, B = 2.3, C = 2.4
+    # D = [0.0] * S
+    # V = [1.0] * Q
+    # kfwd = 2.0
+    # krev = 1.0
+    # reactions[0].append((   # the first and only reaction in voxel 0
+    #     [0, 1],     # reactants: A, B
+    #     [2],        # products: C
+    #     [1, 1, 2],  # stoichiometries
+    #     [1, 1, 2],  # powers
+    #     [kfwd, krev]
+    # ))
+
+    # u0 = np.array([
+    #     [1.0],  # A
+    #     [2.0],  # B
+    #     [3.0],  # C
+    # ])
+
+    #####################################################################
+    ##### 2nd reaction test case (2 coupled reactions):
+    ##### Expected values: A = B = C = 1.
+    ##### Reactions: Reaction 1: A <-> B; Reaction 2: B <-> C
     D = [0.0] * S
     V = [1.0] * Q
-    kfwd = 2.0
-    krev = 1.0
-    reactions[0].append((   # the first and only reaction in voxel 0
-        [0, 1],     # reactants: A, B
-        [2],        # products: C
-        [1, 1, 2],  # stoichiometries
-        [1, 1, 2],  # powers
-        [kfwd, krev]
+    reactions[0].append((
+    [0],        # reactants: A
+    [1],        # products: B
+    [1, 1],     # stoichiometries: A and B
+    [1, 1],     # powers: A and B
+    [1.0, 1.0]  # rate constants: kfwd1, krev1
+    ))
+
+    reactions[0].append((
+    [1],        # reactants: B
+    [2],        # products: C
+    [1, 1],     # stoichiometries: B and C
+    [1, 1],     # powers: B and C
+    [2.0, 2.0]  # rate constants: kfwd2, krev2
     ))
 
     u0 = np.array([
-        [1.0],  # A
-        [2.0],  # B
-        [3.0],  # C
+    [3.0],  # A
+    [0.0],  # B
+    [0.0],  # C
     ])
 
     solver = NewtonRaphson(neighbors, A, d, D, V, reactions)
