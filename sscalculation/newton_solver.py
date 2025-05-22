@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.sparse import lil_matrix
 from scipy.sparse.linalg import spsolve
+from scipy.sparse.linalg import lsqr
 
 
 # Newton-Raphson solver
@@ -30,7 +31,8 @@ class NewtonRaphson:
                 return u
 
             J = self.jacobian(u)
-            delta_u = spsolve(J, -F.flatten())
+            # delta_u = spsolve(J, -F.flatten())
+            delta_u = lsqr(J, -F.flatten())[0]
             u += delta_u.reshape(self.S, self.Q)
 
         raise RuntimeError("Solver failed to converge.")
@@ -95,16 +97,40 @@ class NewtonRaphson:
         return ds
 
 
+    # Central difference approx.
     def jacobian(self, u, h=1e-6):
         N = self.S * self.Q
         J = lil_matrix((N, N))
         u_flat = u.flatten()
-        F0 = self.residual(u).flatten()
 
         for k in range(N):
-            u_perturbed = u_flat.copy()
-            u_perturbed[k] += h
-            F1 = self.residual(u_perturbed.reshape(self.S,self.Q)).flatten()
-            J[:, k] = (F1 - F0) / h
+            u_forward = u_flat.copy()
+            u_backward = u_flat.copy()
+            uk = u_flat[k]
+            h_k = h * max(abs(uk), 1.0)
+            u_forward[k] += h_k
+            u_backward[k] -= h_k
+
+            F_forward = self.residual(u_forward.reshape(self.S, self.Q)).flatten()
+            F_backward = self.residual(u_backward.reshape(self.S, self.Q)).flatten()
+
+            J[:, k] = (F_forward - F_backward) / (2 * h_k)
 
         return J.tocsr()
+
+
+    # # Finite difference approximation
+    # def jacobian(self, u, h=1e-6):
+    #     N = self.S * self.Q
+    #     J = lil_matrix((N, N))
+    #     u_flat = u.flatten()
+    #     F0 = self.residual(u).flatten()
+
+    #     for k in range(N):
+    #         u_perturbed = u_flat.copy()
+    #         u_perturbed[k] += h
+    #         F1 = self.residual(u_perturbed.reshape(self.S,self.Q)).flatten()
+    #         J[:, k] = (F1 - F0) / h
+
+    #     return J.tocsr()
+
