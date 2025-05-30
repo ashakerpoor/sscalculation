@@ -241,3 +241,14 @@ class NewtonRaphson:
 
         return N
 
+
+    def calc_nullspace(N, tol=1e-12):
+        """
+        Computes the nullspace of the stoichiometric matrix N.
+        Returns an array (S, k) with k being the nullity.
+        """
+        U, s, Vh = svd(N.T)
+        nullmask = s < tol
+        nullspace = U[:, nullmask]
+
+        return nullspace  # shape: (S, num_null_vectors)
