@@ -2,6 +2,7 @@ import numpy as np
 from scipy.sparse import lil_matrix, vstack
 from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg import lsqr
+from scipy.linalg import svd
 from numpy.linalg import cond
 
 
@@ -18,7 +19,7 @@ class NewtonRaphson:
         self.S = None
         self.Q = None
 
-    """
+
     # Implement without mass conservation constraints
     def newton(self, u0, tol=1e-6, max_iter=200):
         self.S, self.Q = u0.shape
@@ -41,7 +42,6 @@ class NewtonRaphson:
 
             # delta_u = spsolve(J, -F.flatten())
             delta_u = lsqr(J, -F.flatten())[0]
-            # u += delta_u.reshape(self.S, self.Q)
             u += delta_u.reshape(self.S, self.Q)
 
         raise RuntimeError("Solver failed to converge.")
@@ -49,9 +49,6 @@ class NewtonRaphson:
 
     def residual(self, u):
         res = np.zeros_like(u)
-        # self.S, self.Q = u.shape
-        # print(f"Type of self.Q: {type(self.Q)}, Value: {self.Q}")
-        # print(f"Type of self.S: {type(self.S)}, Value: {self.S}")
 
         for i in range(self.Q):
             for s in range(self.S):
@@ -62,21 +59,14 @@ class NewtonRaphson:
                     Aij = self.A[index]
                     dij = self.d[index]
                     diff_term += self.D[s] * Aij / dij * (u[(s,j)] - u[(s,i)])
-
-                    # n_si = u[(s,i)] * self.V[i]
-                    # n_sj = u[(s,j)] * self.V[j]
-                    # diff_term += self.D[s] * Aij / dij * (n_sj / self.V[i] - n_si / self.V[j])
-                    # diff_term += self.D[s] * Aij / dij * (self.V[j] * u[(s,j)] - self.V[i] * u[(s,i)])
-                    # diff_term += self.D[s] * Aij / (dij*self.V[i]) * (u[(s,j)] - u[(s,i)])
-
                 
                 react_term = self.V[i] * self.reaction_term(u, s, i)
-                # res[s, i] = diff_term / self.V[i] + react_term
                 res[s, i] = diff_term + react_term
 
         return res
-    """
 
+
+    """
     # Implement with the mass conservation constraints
     def newton(self, u0, tol=1e-6, max_iter=1000):
         self.S, self.Q = u0.shape
@@ -134,7 +124,7 @@ class NewtonRaphson:
                 res[s, i] = diff_term + react_term
 
         return res.reshape(-1, 1)  # shape: (S*Q, 1)
-
+    """
 
 
 
@@ -218,3 +208,36 @@ class NewtonRaphson:
             J[:, k] = (F_forward - F_backward) / (2 * h_k)
 
         return J.tocsr()
+    
+
+    def get_stoichmatrix(self, i):
+        """
+        Constructs the stoichiometric matrix N for compartment i.
+        """
+        reaction_list = self.reactions[i]
+        if not reaction_list:
+            return np.zeros((0, 0))
+
+        # Determine local number of species by maximum index in reactants/products
+        # TODO needs to be made more scalable for other formats of input data.
+        max_idx = 0
+        for reaction in reaction_list:
+            reactants, products, _, _, _ = reaction
+            all_species = reactants + products
+            if all_species:
+                max_idx = max(max_idx, max(all_species))
+        S_local = max_idx + 1
+        R = len(reaction_list)
+        N = np.zeros((S_local, R))
+
+        for r_idx, reaction in enumerate(reaction_list):
+            reactants, products, stoichs, powers, rate_constants = reaction
+
+            for species_idx, stoich in zip(reactants, stoichs[:len(reactants)]):
+                N[species_idx, r_idx] -= stoich
+
+            for species_idx, stoich in zip(products, stoichs[len(reactants):]):
+                N[species_idx, r_idx] += stoich
+
+        return N
+
