@@ -242,6 +242,7 @@ class NewtonRaphson:
 
         return N
     
+
     def calc_nullspace(N, tol=1e-12):
         """
         Computes the nullspace of the stoichiometric matrix N.
@@ -251,4 +252,48 @@ class NewtonRaphson:
         nullmask = s < tol
         nullspace = U[:, nullmask]
 
-        return nullspace  # shape: (S, num_null_vectors)
+        return nullspace  # shape: (S_local, num_null_vectors)
+    
+
+    def calc_gW(self):
+        """
+        Constructs the global conservation matrix gW.
+        Each row of gW corresponds to a global conservation law vector w \in R^{S*Q}.
+        While the rows are zero padded to match the global dimension of problem (R^{S*Q}),
+        each row corresponds to local conservation laws.
+        The conservation law is of the form: w^T u = M_total.
+        """
+        gW_list = []
+
+        for i in range(self.Q):
+            N_i = self.get_stoichmatrix(i)
+            w_i = self.calc_nullspace(N_i)
+
+            if w_i.size == 0:
+                continue
+
+            species_involved = set()
+            for reaction in self.reactions[i]:
+                reactants, products, *_ = reaction
+                species_involved.update(reactants + products)
+            species_involved = sorted(species_involved)
+            # local2global = {s_local: s_global for s_local, s_global in enumerate(species_involved)}
+
+            # w_i has shape (S_local, k_i), so iterate over each nullspace vector
+            for k in range(w_i.shape[1]):
+                w_local = w_i[:, k]
+                w_global = np.zeros(self.S * self.Q)
+
+                for s_local, w_val in enumerate(w_local):
+                    # s_global = local2global[s_local]
+                    s_global = species_involved[s_local]
+                    global_idx = s_global * self.Q + i
+                    w_global[global_idx] = self.V[i] * w_val
+
+                gW_list.append(w_global)
+
+        if not gW_list:
+            return np.zeros((0, self.S * self.Q))
+
+        gW = np.vstack(gW_list)  # shape: (K, S*Q), K = total raw conservation laws
+        return gW
