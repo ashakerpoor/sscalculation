@@ -4,6 +4,7 @@ from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg import lsqr
 from scipy.linalg import svd
 from numpy.linalg import cond
+import itertools
 
 
 
@@ -297,3 +298,28 @@ class NewtonRaphson:
 
         gW = np.vstack(gW_list)  # shape: (K, S*Q), K = total raw conservation laws
         return gW
+    
+
+    def calc_gWg(self, gW, k_list):
+        """
+        Constructs global conservation law candidates by linear combination of local laws.
+        Each compartment contributes exacly 1 local law  (if available) into each linear combo.
+
+        Parameters:
+        - gW: (K_total, S*Q), rows are local volume-weighted conservation vectors
+        - k_list: list of ints [k_0, ..., k_{Q-1}], number of local constraints per compartment
+        """
+        if not (k_list or sum(k_list)):
+            return np.zeros((0, self.S * self.Q))
+
+        gW_blocks = []
+        start = 0
+        for k in k_list:
+            end = start + k
+            gW_blocks.append(gW[start:end])
+            start = end
+
+        combinations = list(itertools.product(*gW_blocks))
+        gWg = np.array([np.sum(combo, axis=0) for combo in combinations])  # shape: (K_comb, S*Q)
+
+        return gWg
