@@ -2,8 +2,8 @@ import numpy as np
 from scipy.sparse import lil_matrix, vstack
 from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg import lsqr
-from scipy.linalg import svd
 from numpy.linalg import cond
+
 
 
 # Newton-Raphson solver
@@ -240,15 +240,3 @@ class NewtonRaphson:
                 N[species_idx, r_idx] += stoich
 
         return N
-
-
-    def calc_nullspace(N, tol=1e-12):
-        """
-        Computes the nullspace of the stoichiometric matrix N.
-        Returns an array (S, k) with k being the nullity.
-        """
-        U, s, Vh = svd(N.T)
-        nullmask = s < tol
-        nullspace = U[:, nullmask]
-
-        return nullspace  # shape: (S, num_null_vectors)
