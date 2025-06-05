@@ -3,6 +3,7 @@ from scipy.sparse import lil_matrix, vstack
 from scipy.sparse.linalg import spsolve
 from scipy.sparse.linalg import lsqr
 from scipy.linalg import svd
+from scipy.linalg import qr
 from numpy.linalg import cond
 import itertools
 
@@ -323,3 +324,15 @@ class NewtonRaphson:
         gWg = np.array([np.sum(combo, axis=0) for combo in combinations])  # shape: (K_comb, S*Q)
 
         return gWg
+    
+
+    def reduce_gWg(gWg, tol=1e-12):
+        if gWg.shape[0] <= 1:
+            return gWg
+        
+        Q, R, P = qr(gWg.T, mode='economic', pivoting=True)
+        rank = np.sum(np.abs(np.diag(R)) > tol)
+        
+        # P determines which columns (in gWg.T) are independent
+        independent_rows = np.sort(P[:rank])
+        return gWg[independent_rows]
