@@ -320,8 +320,8 @@ class NewtonRaphson:
         Each compartment contributes exacly 1 local law  (if available) into each linear combo.
 
         Parameters:
-        - gW: (K_total, S*Q), rows are local volume-weighted conservation vectors
-        - k_list: list of ints [k_0, ..., k_{Q-1}], number of local constraints per compartment
+        gW: (K_total, S*Q), rows are local volume-weighted conservation vectors
+        k_list: list of ints [k_0, ..., k_{Q-1}], number of local constraints per compartment
         """
         if not (k_list or sum(k_list)):
             return np.zeros((0, self.S * self.Q))
@@ -350,50 +350,14 @@ class NewtonRaphson:
         # P determines which columns (in gWg.T) are independent
         independent_rows = np.sort(P[:rank])
         return gWg[independent_rows]
-    
-################# up to hear########################
+
+
     @staticmethod
     def calc_Mtotal(u0, gWr):
         """
-        Compute the vector of total conserved quantities M_total.
-        Each entry is: w_k^T u0.flatten(), for each global conservation law w_k.
-        
-        Parameters:
-        - u0: ndarray of shape (S, Q), the initial concentrations
-        - gWr: ndarray of shape (K, S*Q), rows are global conservation vectors
-        
-        Returns:
-        - M_total: ndarray of shape (K,), each entry is a scalar conserved total
+        Computes the vector of total conserved mass M_total.
+        Each entry is w_k^T u0.flatten() per global conservation law w_k.
         """
         u0_flat = u0.flatten()  # shape: (S*Q,)
         M_total = gWr @ u0_flat  # shape: (K,)
         return M_total
-    
-
-    def constrained_res(self, u, F_unconstrained, gWr, M_tot):
-        """
-        Combine residual with conservation constraints.
-
-        Parameters:
-        - u: current iterate, shape (S, Q)
-        - F_unconstrained: residual from system equations, shape (S, Q)
-        - gWr: global constraint matrix (K, S*Q)
-        - M_total: conserved totals (K,)
-
-        Returns:
-        - F_full: flattened vector (S*Q + K,)
-        """
-        F_main = F_unconstrained.flatten()  # (S*Q,)
-        u_flat = u.flatten()                # (S*Q,)
-        F_mass = gWr @ u_flat - M_tot     # (K,)
-        return np.concatenate([F_main, F_mass])
-    
-
-    def get_static_params(self, u0):
-        """ Returns calculated static params M_tot and gWr """
-        gW, k_list = self.calc_gW()
-        gWg = self.calc_gWg(gW, k_list)
-        gWr = self.reduce_gWg(gWg)
-        M_tot = self.calc_Mtotal(u0, gWr)
-
-        return gWr, M_tot
