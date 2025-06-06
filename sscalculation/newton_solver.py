@@ -361,3 +361,11 @@ class NewtonRaphson:
         u0_flat = u0.flatten()  # shape: (S*Q,)
         M_total = gWr @ u0_flat  # shape: (K,)
         return M_total
+    
+
+    def constrained_res(self, u, F_unconstrained, gWr, M_tot):
+        """ Augments the main (unconstrained) residual with conservation constraints """
+        F_main = F_unconstrained.flatten()  # (S*Q,)
+        u_flat = u.flatten()                # (S*Q,)
+        F_mass = gWr @ u_flat - M_tot     # (K,)
+        return np.concatenate([F_main, F_mass])
