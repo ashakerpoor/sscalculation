@@ -27,9 +27,12 @@ class NewtonRaphson:
     def newton(self, u0, tol=1e-6, max_iter=200):
         self.S, self.Q = u0.shape
         u = u0.copy()
+        gWr, M_tot = self.get_static_params(u0)
 
         for k in range(max_iter):
-            F = self.residual(u)
+            F_unconstrained = self.residual(u)
+            F = self.constrained_res(u, F_unconstrained, gWr, M_tot)
+
             norm_F = np.linalg.norm(F)
 
             print(f"Iter {k}: ||F|| = {norm_F:.3e}")
@@ -38,13 +41,13 @@ class NewtonRaphson:
                 print("u:\n", u)
                 return u
 
-            J = self.jacobian(u)
-            condJ = cond(J.toarray())
+            J_unconstrained = self.jacobian(u)    # shape: (S*Q, S*Q)
+            J_aug = vstack([J_unconstrained, gWr]).tocsr()  # J_aug shape: (S*Q + K, S*Q), gWr shape: (K, S*Q)
+            condJ = cond(J_aug.toarray())
             print("Condition number of Jacobian:", condJ)
-            # print("Jacobian:", J)
 
             # delta_u = spsolve(J, -F.flatten())
-            delta_u = lsqr(J, -F.flatten())[0]
+            delta_u = lsqr(J_aug, -F.flatten())[0]
             u += delta_u.reshape(self.S, self.Q)
 
         raise RuntimeError("Solver failed to converge.")
@@ -245,6 +248,7 @@ class NewtonRaphson:
         return N
     
 
+    @staticmethod
     def calc_nullspace(N, tol=1e-12):
         """
         Computes the nullspace of the stoichiometric matrix N.
@@ -255,6 +259,12 @@ class NewtonRaphson:
         nullspace = U[:, nullmask]
 
         return nullspace  # shape: (S_local, num_null_vectors)
+    # def calc_nullspace(N, tol=1e-12):
+    #     """ Computes the nullspace of the stoichiometric matrix N. """
+    #     U, s, Vh = svd(N.T)
+    #     nullmask = s < tol
+    #     nullspace = Vh[nullmask, :].T  # Use right singular vectors (Vh)
+    #     return nullspace  # shape: (S_local, num_null_vectors)
     
 
     def calc_gW(self):
@@ -265,11 +275,14 @@ class NewtonRaphson:
         each row corresponds to local conservation laws.
         The conservation law is of the form: w^T u = M_total.
         """
+        k_list = []
         gW_list = []
 
         for i in range(self.Q):
             N_i = self.get_stoichmatrix(i)
             w_i = self.calc_nullspace(N_i)
+            k_i = w_i.shape[1]
+            k_list.append(k_i)
 
             if w_i.size == 0:
                 continue
@@ -282,7 +295,7 @@ class NewtonRaphson:
             # local2global = {s_local: s_global for s_local, s_global in enumerate(species_involved)}
 
             # w_i has shape (S_local, k_i), so iterate over each nullspace vector
-            for k in range(w_i.shape[1]):
+            for k in range(k_i):
                 w_local = w_i[:, k]
                 w_global = np.zeros(self.S * self.Q)
 
@@ -295,10 +308,10 @@ class NewtonRaphson:
                 gW_list.append(w_global)
 
         if not gW_list:
-            return np.zeros((0, self.S * self.Q))
+            return np.zeros((0, self.S * self.Q)), k_list
 
         gW = np.vstack(gW_list)  # shape: (K, S*Q), K = total raw conservation laws
-        return gW
+        return gW, k_list
     
 
     def calc_gWg(self, gW, k_list):
@@ -326,6 +339,7 @@ class NewtonRaphson:
         return gWg
     
 
+    @staticmethod
     def reduce_gWg(gWg, tol=1e-12):
         if gWg.shape[0] <= 1:
             return gWg
@@ -336,3 +350,50 @@ class NewtonRaphson:
         # P determines which columns (in gWg.T) are independent
         independent_rows = np.sort(P[:rank])
         return gWg[independent_rows]
+    
+################# up to hear########################
+    @staticmethod
+    def calc_Mtotal(u0, gWr):
+        """
+        Compute the vector of total conserved quantities M_total.
+        Each entry is: w_k^T u0.flatten(), for each global conservation law w_k.
+        
+        Parameters:
+        - u0: ndarray of shape (S, Q), the initial concentrations
+        - gWr: ndarray of shape (K, S*Q), rows are global conservation vectors
+        
+        Returns:
+        - M_total: ndarray of shape (K,), each entry is a scalar conserved total
+        """
+        u0_flat = u0.flatten()  # shape: (S*Q,)
+        M_total = gWr @ u0_flat  # shape: (K,)
+        return M_total
+    
+
+    def constrained_res(self, u, F_unconstrained, gWr, M_tot):
+        """
+        Combine residual with conservation constraints.
+
+        Parameters:
+        - u: current iterate, shape (S, Q)
+        - F_unconstrained: residual from system equations, shape (S, Q)
+        - gWr: global constraint matrix (K, S*Q)
+        - M_total: conserved totals (K,)
+
+        Returns:
+        - F_full: flattened vector (S*Q + K,)
+        """
+        F_main = F_unconstrained.flatten()  # (S*Q,)
+        u_flat = u.flatten()                # (S*Q,)
+        F_mass = gWr @ u_flat - M_tot     # (K,)
+        return np.concatenate([F_main, F_mass])
+    
+
+    def get_static_params(self, u0):
+        """ Returns calculated static params M_tot and gWr """
+        gW, k_list = self.calc_gW()
+        gWg = self.calc_gWg(gW, k_list)
+        gWr = self.reduce_gWg(gWg)
+        M_tot = self.calc_Mtotal(u0, gWr)
+
+        return gWr, M_tot
