@@ -369,3 +369,13 @@ class NewtonRaphson:
         u_flat = u.flatten()                # (S*Q,)
         F_mass = gWr @ u_flat - M_tot     # (K,)
         return np.concatenate([F_main, F_mass])
+    
+
+    def get_static_params(self, u0):
+        """ Returns calculated static params M_tot and gWr """
+        gW, k_list = self.calc_gW()
+        gWg = self.calc_gWg(gW, k_list)
+        gWr = self.reduce_gWg(gWg)
+        M_tot = self.calc_Mtotal(u0, gWr)
+
+        return gWr, M_tot
